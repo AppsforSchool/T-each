@@ -1,0 +1,13 @@
+name = "t-each-api"
+main = "worker/worker.ts"
+compatibility_date = "2025-05-08"
+compatibility_flags = ["nodejs_compat"]
+
+[observability]
+enabled = true
+
+[vars]
+# Firebaseのプロジェクトid（firebaseConfig の projectId と同じ値）。秘密の情報ではない
+FIREBASE_PROJECT_ID = "appsforschool-study"
+# ブラウザからのアクセスを許可する画面のオリジン（カンマ区切り）
+ALLOWED_ORIGINS = "https://appsforschool.github.io,http://localhost:5173"
