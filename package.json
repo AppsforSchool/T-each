@@ -8,7 +8,8 @@
 		"dev:worker": "wrangler dev --port 8787",
 		"build": "vite build",
 		"typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p worker/tsconfig.json",
-		"deploy:worker": "wrangler deploy"
+		"deploy:worker": "wrangler deploy",
+		"make-dev-vars": "node scripts/make-dev-vars.mjs"
 	},
 	"dependencies": {
 		"firebase": "12.14.0",

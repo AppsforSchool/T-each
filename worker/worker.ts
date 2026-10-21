@@ -1,8 +1,16 @@
 import { AutoRouter, error, type IRequest } from 'itty-router'
 import { verifyFirebaseIdToken } from './firebaseAuth'
+import { fsDelete, fsGet, fsSet } from './firestore'
+import { uploadImage } from './images'
+import { createSession } from './sessions'
+import { sessionAction } from './transitions'
 
 export interface Env {
 	FIREBASE_PROJECT_ID: string
+	/** サービスアカウントの鍵（JSON）。Secretとして登録する */
+	FIREBASE_SERVICE_ACCOUNT: string
+	/** ImgBBのAPIキー。Secretとして登録する */
+	IMGBB_API_KEY: string
 	ALLOWED_ORIGINS: string
 }
 
@@ -22,6 +30,17 @@ export async function authenticate(request: Request, env: Env): Promise<Authenti
 	return { uid: payload.sub, userId: local }
 }
 
+type AuthedHandler = (request: IRequest, env: Env, who: Authenticated) => Promise<Response>
+
+/** ログインを検証してから、処理を呼ぶ。検証に失敗したら 401 を返す。 */
+const authed =
+	(handler: AuthedHandler) =>
+	async (request: IRequest, env: Env): Promise<Response> => {
+		const who = await authenticate(request, env)
+		if (!who) return error(401, { error: 'unauthorized', message: 'ログインが必要です' })
+		return handler(request, env, who)
+	}
+
 const router = AutoRouter<IRequest, [env: Env, ctx: ExecutionContext]>({
 	catch: (e) => {
 		console.error(e)
@@ -32,6 +51,19 @@ const router = AutoRouter<IRequest, [env: Env, ctx: ExecutionContext]>({
 		const who = await authenticate(request, env)
 		if (!who) return error(401, 'Invalid or missing token')
 		return Response.json(who)
+	})
+	.post('/api/images', authed(uploadImage))
+	.post('/api/sessions', authed(createSession))
+	.post('/api/sessions/:id/:action', authed(sessionAction))
+	// 【M2.1の確認用・あとで削除】Workerから、Firestoreに書き込み・読み取りできるかの確認。自分のドキュメントだけに書く。
+	.get('/api/dev/firestore-check', async (request, env) => {
+		const who = await authenticate(request, env)
+		if (!who) return error(401, 'Invalid or missing token')
+		const path = `teach_dev/${who.userId}`
+		await fsSet(env, path, { checkedAt: new Date(), note: 'M2.1 の確認', n: 1, nested: { ok: true } })
+		const read = await fsGet(env, path)
+		await fsDelete(env, path)
+		return Response.json({ wrote: path, read, deletedAfterCheck: true })
 	})
 	.all('*', () => error(404, 'Not found'))
 

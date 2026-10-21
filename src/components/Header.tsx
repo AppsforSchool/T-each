@@ -1,3 +1,4 @@
+import { NavLink } from 'react-router-dom'
 import { useAuth } from '../auth'
 
 export function Logo() {
@@ -14,6 +15,12 @@ export function Header() {
 		<header className="app-header">
 			<div className="title-area">
 				<Logo />
+				<nav className="nav">
+					<NavLink to="/" end>
+						ホーム
+					</NavLink>
+					<NavLink to="/users">ユーザー</NavLink>
+				</nav>
 			</div>
 			<div className="user-data">
 				<span className="user-name">{userId}</span>
