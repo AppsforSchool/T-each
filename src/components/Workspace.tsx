@@ -25,6 +25,9 @@ export function Workspace({ sessionId, s }: { sessionId: string; s: SessionDoc<T
 	const wide = useMedia('(min-width: 900px)')
 	const [tab, setTab] = useState<'board' | 'chat'>('board')
 
+	// カーソルの色の決め方に使う（依頼した側と、依頼された側で、色を分ける）
+	const role = s.requesterId === userId ? 'requester' : 'tutor'
+
 	const myRead = userId ? s.lastRead?.[userId] : undefined
 	const unread =
 		!!s.lastMessageBy &&
@@ -40,7 +43,7 @@ export function Workspace({ sessionId, s }: { sessionId: string; s: SessionDoc<T
 		return (
 			<div className="workspace wide">
 				<div className="ws-board">
-					<Board sessionId={sessionId} />
+					<Board sessionId={sessionId} role={role} />
 				</div>
 				<div className="ws-chat">{chat(true)}</div>
 			</div>
@@ -59,7 +62,7 @@ export function Workspace({ sessionId, s }: { sessionId: string; s: SessionDoc<T
 				</button>
 			</div>
 			<div className="ws-pane" style={{ display: tab === 'board' ? 'block' : 'none' }}>
-				<Board sessionId={sessionId} />
+				<Board sessionId={sessionId} role={role} />
 			</div>
 			<div className="ws-pane" style={{ display: tab === 'chat' ? 'block' : 'none' }}>
 				{chat(tab === 'chat')}

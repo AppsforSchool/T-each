@@ -22,21 +22,13 @@ import { db } from '../firebase'
 import { prepareImage } from '../lib/image'
 import { useUser } from '../lib/users'
 
-// ユーザーIDから、カーソルの色を決める（同じ人は、いつも同じ色）
-function colorFor(id: string): string {
-	let h = 0
-	for (const c of id) h = (h * 31 + c.charCodeAt(0)) % 360
-	const s = 0.65
-	const l = 0.45
-	const k = (n: number) => (n + h / 30) % 12
-	const a = s * Math.min(l, 1 - l)
-	const f = (n: number) => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)))
-	const x = (v: number) => Math.round(255 * v).toString(16).padStart(2, '0')
-	return `#${x(f(0))}${x(f(8))}${x(f(4))}`
-}
+// カーソルの色は、サイトの配色に合わせる。依頼した側＝メインカラー（青緑）、依頼された側＝アクセントカラー（藍色）。
+// （styles.css の --primary と --accent と、同じ色）
+const CURSOR_COLOR = { requester: '#1e9e8f', tutor: '#5b6ee8' } as const
+export type BoardRole = keyof typeof CURSOR_COLOR
 
 /** 名前を読み込んでから、ボードを開く（接続したあとに、名前が変わって、つなぎ直しになるのを避ける） */
-export function Board({ sessionId }: { sessionId: string }) {
+export function Board({ sessionId, role }: { sessionId: string; role: BoardRole }) {
 	const { userId } = useAuth()
 	const me = useUser(userId)
 	if (!userId || !me)
@@ -47,7 +39,7 @@ export function Board({ sessionId }: { sessionId: string }) {
 				</p>
 			</div>
 		)
-	return <BoardInner sessionId={sessionId} userId={userId} userName={me.name} />
+	return <BoardInner sessionId={sessionId} userId={userId} userName={me.name} role={role} />
 }
 
 /**
@@ -56,7 +48,17 @@ export function Board({ sessionId }: { sessionId: string }) {
  * ・画像の追加は、端末側で縮小してから、Worker経由でImgBBにアップロードする（1セッション15枚まで）。
  * ・編集があったら、最終更新時刻を、1時間に1回まで書き込む（自動終了の基準）。
  */
-function BoardInner({ sessionId, userId, userName }: { sessionId: string; userId: string; userName: string }) {
+function BoardInner({
+	sessionId,
+	userId,
+	userName,
+	role,
+}: {
+	sessionId: string
+	userId: string
+	userName: string
+	role: BoardRole
+}) {
 	const getUri = useCallback(async () => {
 		const { token } = await apiFetch<{ token: string }>(`/api/sessions/${sessionId}/board-token`, { method: 'POST' })
 		const wsBase = API_BASE.replace(/^http/, 'ws') // https → wss、http → ws
@@ -87,7 +89,7 @@ function BoardInner({ sessionId, userId, userName }: { sessionId: string; userId
 	const [userPreferences, setUserPreferences] = useState<TLUserPreferences>(() => ({
 		id: userId,
 		name: userName,
-		color: colorFor(userId),
+		color: CURSOR_COLOR[role],
 		locale: 'ja',
 	}))
 	const userPrefsAtom = useRef(atom('userPrefs', userPreferences)).current
