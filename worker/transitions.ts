@@ -1,7 +1,8 @@
 import type { IRequest } from 'itty-router'
 import { LIMITS } from '../shared/limits'
 import type { SessionStatus, SystemKind } from '../shared/types'
-import type { FsData, FsEnv } from './firestore'
+import { type BoardEnv, ensureBoard, kickBoard } from './board'
+import type { FsData } from './firestore'
 import { fsBatch, fsGet } from './firestore'
 import { fail } from './http'
 
@@ -21,7 +22,7 @@ const KIND: Record<SessionAction, SystemKind> = {
  * POST /api/sessions/:id/:action — セッションの状態を変える。
  * 誰が・どの状態から・何にできるかは、ここ1か所で決める（画面やFirestoreのルールには任せない）。
  */
-export async function sessionAction(request: IRequest, env: FsEnv, who: { userId: string }): Promise<Response> {
+export async function sessionAction(request: IRequest, env: BoardEnv, who: { userId: string }): Promise<Response> {
 	const sessionId = String(request.params.id ?? '')
 	const action = String(request.params.action ?? '') as SessionAction
 	if (!(ACTIONS as readonly string[]).includes(action)) return fail(404, 'unknown_action', '不明な操作です')
@@ -49,7 +50,14 @@ export async function sessionAction(request: IRequest, env: FsEnv, who: { userId
 		case 'approve':
 			if (!isTutor) return forbidden()
 			if (status !== 'requested') return invalidState()
-			update = { status: 'active', approvedAt: now, lastActivityAt: now }
+			// ボードの準備（初期配置）は、承認と一体で行う。失敗したら、承認しない。二重配置は、Durable Object側で防ぐ
+			try {
+				await ensureBoard(env, sessionId, s)
+			} catch (e) {
+				console.error('ensureBoard failed', e)
+				return fail(502, 'board_failed', 'ボードを準備できませんでした。もう一度お試しください')
+			}
+			update = { status: 'active', approvedAt: now, lastActivityAt: now, boardInitialized: true }
 			break
 
 		case 'decline': {
@@ -94,7 +102,7 @@ export async function sessionAction(request: IRequest, env: FsEnv, who: { userId
 			{
 				type: 'set',
 				path: `teach_sessions/${sessionId}`,
-				data: { ...update, updatedAt: now, lastMessageAt: now },
+				data: { ...update, updatedAt: now, lastMessageAt: now, lastMessageBy: who.userId },
 				ifUpdateTime: doc.updateTime, // 同時に別の操作が入っていたら、失敗させる
 			},
 			{
@@ -107,5 +115,10 @@ export async function sessionAction(request: IRequest, env: FsEnv, who: { userId
 		console.error(e)
 		return invalidState()
 	}
+	// 権限が変わる（終了で読み取り専用、再開で書き込み可）ので、接続中のボードを切って、再接続させる
+	if ((action === 'end' || action === 'resume') && s.boardInitialized === true) await kickBoard(env, sessionId)
+
+	// 終了・再開で、ボードの権限が変わる。接続を切って、再接続（新しいトークン）を促す。
+
 	return Response.json({ ok: true, status: update.status })
 }

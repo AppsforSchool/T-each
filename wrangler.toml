@@ -11,3 +11,12 @@ enabled = true
 FIREBASE_PROJECT_ID = "appsforschool-study"
 # ブラウザからのアクセスを許可する画面のオリジン（カンマ区切り）
 ALLOWED_ORIGINS = "https://appsforschool.github.io,http://localhost:5173"
+
+# ボード1つ（＝セッション1つ）につき、Durable Objectを1つ使う。ボードのデータは、そのSQLiteに保存される。
+[durable_objects]
+bindings = [{ name = "TLDRAW_DURABLE_OBJECT", class_name = "TldrawDurableObject" }]
+
+# SQLiteのストレージ方式（無料プランで使える方式）
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["TldrawDurableObject"]

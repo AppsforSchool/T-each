@@ -19,6 +19,13 @@ function SessionRow({ row, showResume }: { row: Row; showResume?: boolean }) {
 	const { data } = row
 	const partner = useUser(partnerIdOf(data, userId))
 	const [busy, setBusy] = useState(false)
+	// 相手が最後にメッセージを送っていて、自分の既読より新しければ「新着」。古いデータには lastMessageBy が無い
+	const myRead = userId ? data.lastRead?.[userId] : undefined
+	const unread =
+		!!data.lastMessageBy &&
+		data.lastMessageBy !== userId &&
+		!!data.lastMessageAt &&
+		(!myRead || data.lastMessageAt.toMillis() > myRead.toMillis())
 
 	const resume = async (e: React.MouseEvent) => {
 		e.stopPropagation()
@@ -38,6 +45,7 @@ function SessionRow({ row, showResume }: { row: Row; showResume?: boolean }) {
 			<div className="user-row-text" style={{ flex: 1 }}>
 				<b>
 					{partner?.name ?? '…'} <span className={`badge ${data.status}`}>{STATUS_LABEL[data.status]}</span>{' '}
+					{unread && <span className="badge new">新着</span>}{' '}
 					<span className="muted">（{roleLabelOf(data, userId)}）</span>
 				</b>
 				<p className="muted clamp">

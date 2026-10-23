@@ -9,7 +9,10 @@ export const LIMITS = {
 
 	// チャット
 	chatMessageMaxChars: 2000, // 1メッセージ（仮）
-
+	chatRateLimit: { max: 30, windowSeconds: 60 }, // 1人あたりの送信回数の上限（仮）
+	activityWriteIntervalMs: 60 * 60 * 1000, // ボードの編集で、最終更新時刻（lastActivityAt）を書き込む間隔の下限（仮）
+	readMarkIntervalMs: 3000, // 既読時刻を書き込む間隔の下限（仮）
+	chatLoadCount: 100, // 画面に読み込む、直近のメッセージ数（仮）
 	// 画像
 	maxImagesPerRequest: 3, // 依頼の作成時に、新しく追加できる枚数
 	maxImagesPerSession: 15, // 1セッション全体で追加できる枚数（依頼時の分も含む。ImgBB参照の引き継ぎ画像は含まない）（仮）

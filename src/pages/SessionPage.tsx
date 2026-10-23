@@ -6,6 +6,7 @@ import { LIMITS } from '../../shared/limits'
 import type { SessionDoc } from '../../shared/types'
 import { useAuth } from '../auth'
 import { Header } from '../components/Header'
+import { Workspace } from '../components/Workspace'
 import { db } from '../firebase'
 import { partnerIdOf, roleLabelOf, runSessionAction, type SessionAction, STATUS_LABEL } from '../lib/sessions'
 import { useUser } from '../lib/users'
@@ -69,6 +70,8 @@ export function SessionPage() {
 			</>
 		)
 
+	// ボードとチャットを表示するのは、進行中と、承認されたことがある終了中のセッション
+	const hasWorkspace = s.status === 'active' || (s.status === 'ended' && !!s.approvedAt)
 	const isTutor = s.tutorId === userId
 	const isRequester = s.requesterId === userId
 	const name = partner?.name ?? '…'
@@ -76,7 +79,7 @@ export function SessionPage() {
 	return (
 		<>
 			<Header />
-			<main className="page">
+			<main className={`page ${hasWorkspace ? 'page-wide' : ''}`}>
 				<section className="card">
 					<div className="profile-row">
 						{partner?.imageUrl ? <img className="avatar" src={partner.imageUrl} alt="" /> : <div className="avatar" />}
@@ -92,7 +95,11 @@ export function SessionPage() {
 					{s.status === 'requested' && isRequester && <p style={{ marginTop: 10 }}>{name}さんの返答を、待っています。</p>}
 					{s.status === 'declined' && (
 						<p style={{ marginTop: 10 }}>
-							{s.autoDeclined ? '返答がなかったため、自動的に拒否扱いになりました。' : `${name}さんに、断られました。`}
+							{s.autoDeclined
+								? '返答がなかったため、自動的に拒否扱いになりました。'
+								: isTutor
+									? 'あなたが、断りました。'
+									: `${name}さんに、断られました。`}
 							{s.declineReason && <span className="quote">理由：{s.declineReason}</span>}
 						</p>
 					)}
@@ -129,6 +136,8 @@ export function SessionPage() {
 						</div>
 					)}
 				</section>
+
+				{hasWorkspace && <Workspace sessionId={id!} s={s} />}
 
 				<section className="card">
 					<h2>操作</h2>
@@ -180,7 +189,6 @@ export function SessionPage() {
 					)}
 					{s.status === 'active' && (
 						<>
-							<p className="muted">チャットとボードは、このあと追加します。</p>
 							{isRequester ? (
 								<p className="actions">
 									<button

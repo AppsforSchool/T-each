@@ -12,11 +12,15 @@
 		"make-dev-vars": "node scripts/make-dev-vars.mjs"
 	},
 	"dependencies": {
+		"@tldraw/sync": "^5.5.2",
+		"@tldraw/sync-core": "^5.5.2",
+		"@tldraw/tlschema": "^5.5.2",
 		"firebase": "12.14.0",
 		"itty-router": "^5.0.18",
 		"react": "^19.2.1",
 		"react-dom": "^19.2.1",
-		"react-router-dom": "^6.28.2"
+		"react-router-dom": "^6.28.2",
+		"tldraw": "^5.5.2"
 	},
 	"devDependencies": {
 		"@cloudflare/workers-types": "^5.20261006.1",

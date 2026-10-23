@@ -1,9 +1,14 @@
 import { AutoRouter, error, type IRequest } from 'itty-router'
 import { verifyFirebaseIdToken } from './firebaseAuth'
+import { boardConnect, issueBoardToken } from './board'
 import { fsDelete, fsGet, fsSet } from './firestore'
-import { uploadImage } from './images'
+import { uploadImage, uploadSessionImage } from './images'
+import { sendMessage } from './messages'
 import { createSession } from './sessions'
 import { sessionAction } from './transitions'
+
+// ボードのDurable Object（クラスは、ここから公開する必要がある）
+export { TldrawDurableObject } from './TldrawDurableObject'
 
 export interface Env {
 	FIREBASE_PROJECT_ID: string
@@ -11,6 +16,10 @@ export interface Env {
 	FIREBASE_SERVICE_ACCOUNT: string
 	/** ImgBBのAPIキー。Secretとして登録する */
 	IMGBB_API_KEY: string
+	/** ボード接続用トークンの署名鍵。Secretとして登録する */
+	BOARD_TOKEN_SECRET: string
+	/** ボード1つ（＝セッション1つ）につき、Durable Objectを1つ使う。wrangler.toml の bindings で登録している */
+	TLDRAW_DURABLE_OBJECT: DurableObjectNamespace
 	ALLOWED_ORIGINS: string
 }
 
@@ -54,6 +63,11 @@ const router = AutoRouter<IRequest, [env: Env, ctx: ExecutionContext]>({
 	})
 	.post('/api/images', authed(uploadImage))
 	.post('/api/sessions', authed(createSession))
+	.post('/api/sessions/:id/messages', authed(sendMessage))
+	.post('/api/sessions/:id/images', authed(uploadSessionImage))
+	.post('/api/sessions/:id/board-token', authed(issueBoardToken))
+	// ボードの接続は、Firebaseのログインではなく、上のトークンで認証する（WebSocketはヘッダーを付けられないため）
+	.get('/api/board/:id/connect', boardConnect)
 	.post('/api/sessions/:id/:action', authed(sessionAction))
 	// 【M2.1の確認用・あとで削除】Workerから、Firestoreに書き込み・読み取りできるかの確認。自分のドキュメントだけに書く。
 	.get('/api/dev/firestore-check', async (request, env) => {
@@ -87,7 +101,7 @@ export default {
 			return new Response(null, { status: 204, headers: corsHeaders(request, env) })
 		}
 		const res = await router.fetch(request, env, ctx)
-		if (res.status === 101) return res // WebSocketの接続は、そのまま返す（後のボードの段階で使う）
+		if (res.status === 101) return res // WebSocketの接続（ボード）は、そのまま返す
 		const headers = new Headers(res.headers)
 		for (const [k, v] of Object.entries(corsHeaders(request, env))) headers.set(k, v)
 		return new Response(res.body, { status: res.status, statusText: res.statusText, headers })

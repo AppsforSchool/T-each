@@ -93,6 +93,7 @@ export async function createSession(request: Request, env: FsEnv, who: { userId:
 		updatedAt: now,
 		lastActivityAt: now,
 		lastMessageAt: null,
+		lastMessageBy: null,
 		lastRead: {},
 		approvedAt: null,
 		declinedAt: null,

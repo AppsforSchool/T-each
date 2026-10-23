@@ -30,6 +30,8 @@ export type SessionDoc<T = Date> = {
 	/** 最後に、チャット・通話・ボード編集があった時刻。active の自動終了の基準。 */
 	lastActivityAt: T
 	lastMessageAt: T | null
+	/** 最後のメッセージ（システムメッセージを含む）を送った人。一覧の「新着」の判定に使う。古いデータには無い（null として扱う）。 */
+	lastMessageBy: string | null
 	/** 参加者ごとの既読時刻。自分の分だけ、画面から書き込める。 */
 	lastRead: Record<string, T>
 
