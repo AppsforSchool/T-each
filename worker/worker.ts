@@ -1,7 +1,6 @@
 import { AutoRouter, error, type IRequest } from 'itty-router'
 import { verifyFirebaseIdToken } from './firebaseAuth'
 import { boardConnect, issueBoardToken } from './board'
-import { fsDelete, fsGet, fsSet } from './firestore'
 import { uploadImage, uploadSessionImage } from './images'
 import { sendMessage } from './messages'
 import { createSession } from './sessions'
@@ -56,11 +55,6 @@ const router = AutoRouter<IRequest, [env: Env, ctx: ExecutionContext]>({
 		return error(500, 'Internal error')
 	},
 })
-	.get('/api/whoami', async (request, env) => {
-		const who = await authenticate(request, env)
-		if (!who) return error(401, 'Invalid or missing token')
-		return Response.json(who)
-	})
 	.post('/api/images', authed(uploadImage))
 	.post('/api/sessions', authed(createSession))
 	.post('/api/sessions/:id/messages', authed(sendMessage))
@@ -69,16 +63,6 @@ const router = AutoRouter<IRequest, [env: Env, ctx: ExecutionContext]>({
 	// ボードの接続は、Firebaseのログインではなく、上のトークンで認証する（WebSocketはヘッダーを付けられないため）
 	.get('/api/board/:id/connect', boardConnect)
 	.post('/api/sessions/:id/:action', authed(sessionAction))
-	// 【M2.1の確認用・あとで削除】Workerから、Firestoreに書き込み・読み取りできるかの確認。自分のドキュメントだけに書く。
-	.get('/api/dev/firestore-check', async (request, env) => {
-		const who = await authenticate(request, env)
-		if (!who) return error(401, 'Invalid or missing token')
-		const path = `teach_dev/${who.userId}`
-		await fsSet(env, path, { checkedAt: new Date(), note: 'M2.1 の確認', n: 1, nested: { ok: true } })
-		const read = await fsGet(env, path)
-		await fsDelete(env, path)
-		return Response.json({ wrote: path, read, deletedAfterCheck: true })
-	})
 	.all('*', () => error(404, 'Not found'))
 
 // ---- CORS（画面とWorkerが別のオリジンのため必要） ----
