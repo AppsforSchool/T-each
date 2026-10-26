@@ -535,3 +535,123 @@ textarea.input {
 	max-width: 720px;
 	width: 100%;
 }
+
+/* ---- 通話（M5） ---- */
+.call-toast {
+	position: fixed;
+	top: calc(env(safe-area-inset-top, 0px) + 8px);
+	left: 50%;
+	transform: translateX(-50%);
+	z-index: 1200;
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	max-width: min(92vw, 520px);
+	padding: 0.6rem 0.9rem;
+	background: var(--surface);
+	border: 1px solid var(--border);
+	border-radius: var(--radius-md);
+	box-shadow: var(--shadow-lg);
+}
+.call-incoming {
+	position: fixed;
+	inset: 0;
+	z-index: 1300;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 6px;
+	padding: 24px;
+	background: rgba(var(--primary-rgb), 0.97);
+	color: #fff;
+}
+.call-incoming .muted {
+	color: rgba(255, 255, 255, 0.85);
+}
+.call-avatar {
+	width: 112px;
+	height: 112px;
+	border-radius: var(--radius-full);
+	object-fit: cover;
+	background: rgba(255, 255, 255, 0.35);
+	margin-bottom: 8px;
+}
+.call-incoming-name {
+	font-size: 1.5rem;
+	font-weight: bold;
+}
+.call-incoming-actions {
+	display: flex;
+	gap: 28px;
+	margin-top: 28px;
+}
+.call-incoming-actions .btn {
+	min-width: 116px;
+	padding: 0.9rem 1.2rem;
+	font-size: 1.05rem;
+}
+.call-accept {
+	background: #fff;
+	color: var(--primary-dark);
+}
+.call-reject {
+	background: var(--danger);
+	color: #fff;
+}
+.call-hint {
+	margin-top: 18px;
+	font-size: 0.85rem;
+}
+.call-bar-spacer {
+	height: 64px;
+}
+.call-bar {
+	position: fixed;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	z-index: 1100;
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	padding: 0.6rem 1rem calc(0.6rem + env(safe-area-inset-bottom, 0px));
+	background: var(--surface);
+	border-top: 2px solid var(--primary);
+	box-shadow: 0 -6px 20px rgba(20, 30, 40, 0.1);
+}
+.call-bar.reconnecting,
+.call-bar.orphan {
+	border-top-color: var(--danger);
+}
+.call-bar-text {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+}
+.call-route {
+	font-size: 0.75rem;
+	color: var(--text-muted);
+}
+.call-bar-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+}
+.call-end {
+	background: var(--danger);
+	color: #fff;
+}
+a.btn {
+	display: inline-block;
+	text-decoration: none;
+}
+.call-end:hover,
+.call-reject:hover {
+	background: #b83a3a;
+}
+.call-accept:hover {
+	background: var(--primary-soft);
+}

@@ -151,15 +151,23 @@ export async function fsDelete(env: FsEnv, path: string): Promise<void> {
 	if (!res.ok && res.status !== 404) throw new Error(`fsDelete ${path}: ${res.status} ${await res.text()}`)
 }
 
-// ---- 検索（「等しい」条件だけ。複数指定は AND）。並べ替えはしない（インデックスを作らずに済ませるため） ----
-export type FsFilter = [field: string, value: unknown]
+// ---- 検索（「等しい」条件と、配列に含まれる条件だけ。複数指定は AND）。並べ替えはしない（インデックスを作らずに済ませるため） ----
+// parent を指定すると、サブコレクションを検索できる（例：parent='teach_sessions/{id}'、collectionId='signals'）
+export type FsFilter = [field: string, value: unknown, op?: 'EQUAL' | 'ARRAY_CONTAINS']
 
-export async function fsQuery(env: FsEnv, collectionId: string, filters: FsFilter[], limit = 100): Promise<FsDoc[]> {
-	const fieldFilters = filters.map(([field, value]) => ({
-		fieldFilter: { field: { fieldPath: field }, op: 'EQUAL', value: encodeValue(value) },
+export async function fsQuery(
+	env: FsEnv,
+	collectionId: string,
+	filters: FsFilter[],
+	limit = 100,
+	parent?: string
+): Promise<FsDoc[]> {
+	const fieldFilters = filters.map(([field, value, op]) => ({
+		fieldFilter: { field: { fieldPath: field }, op: op ?? 'EQUAL', value: encodeValue(value) },
 	}))
 	const where = fieldFilters.length === 1 ? fieldFilters[0] : { compositeFilter: { op: 'AND', filters: fieldFilters } }
-	const res = await call(env, 'POST', `${base(env)}:runQuery`, {
+	const url = parent ? `${base(env)}/${parent}:runQuery` : `${base(env)}:runQuery`
+	const res = await call(env, 'POST', url, {
 		structuredQuery: { from: [{ collectionId }], where, limit },
 	})
 	if (!res.ok) throw new Error(`fsQuery ${collectionId}: ${res.status} ${await res.text()}`)

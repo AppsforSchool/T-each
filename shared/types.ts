@@ -48,6 +48,37 @@ export type SessionDoc<T = Date> = {
 
 	boardInitialized: boolean // ボードの初期配置が済んだか（二重配置の防止）
 	imageCount: number // このセッションで追加した画像の枚数（上限の判定用）
+
+	/** 直近の通話の状態。Workerだけが書く。一度も通話していないセッションには無い（null として扱う）。 */
+	call?: CallState<T> | null
+}
+
+/** 通話の状態。ringing：呼び出し中（最大60秒） connected：通話中
+ *  終端：ended（終了）／rejected（拒否）／missed（時間切れ）／canceled（発信者の取り消し）／busy（話中） */
+export type CallStatus = 'ringing' | 'connected' | 'ended' | 'rejected' | 'missed' | 'canceled' | 'busy'
+
+export type CallState<T = Date> = {
+	id: string // 通話ごとのID。シグナリング（signals）の絞り込みに使う
+	status: CallStatus
+	callerId: string
+	calleeId: string
+	startedAt: T
+	answeredAt: T | null
+	endedAt: T | null
+	endedBy: string | null
+	endReason: 'disconnected' | null // 再接続できずに終了したとき
+	/** 通話中に、参加者の画面が定期的に更新する。これが長く止まった通話は、放置されたものとして扱う。 */
+	lastPingAt: T
+}
+
+/** teach_sessions/{sessionId}/signals/{signalId} — WebRTCの接続情報。参加者が作成のみ可能（更新・削除は不可）。 */
+export type SignalDoc<T = Date> = {
+	callId: string
+	from: string
+	to: string
+	type: 'sdp' | 'ice' | 'restart'
+	data: string // JSON文字列（sdp: RTCSessionDescriptionInit／ice: RTCIceCandidateInit／restart: {}）
+	createdAt: T
 }
 
 /** システムメッセージの種類。チャットに、出来事として表示する。 */

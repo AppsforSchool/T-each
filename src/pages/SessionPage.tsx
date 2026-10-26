@@ -5,6 +5,7 @@ import { Link, useParams } from 'react-router-dom'
 import { LIMITS } from '../../shared/limits'
 import type { SessionDoc } from '../../shared/types'
 import { useAuth } from '../auth'
+import { CallButton } from '../components/CallButton'
 import { Header } from '../components/Header'
 import { Workspace } from '../components/Workspace'
 import { db } from '../firebase'
@@ -91,6 +92,11 @@ export function SessionPage() {
 						</div>
 					</div>
 
+					{s.status === 'active' && (
+						<p className="actions" style={{ marginTop: 10 }}>
+							<CallButton sessionId={id!} />
+						</p>
+					)}
 					{s.status === 'requested' && isTutor && <p style={{ marginTop: 10 }}>{name}さんから、依頼が届いています。</p>}
 					{s.status === 'requested' && isRequester && <p style={{ marginTop: 10 }}>{name}さんの返答を、待っています。</p>}
 					{s.status === 'declined' && (

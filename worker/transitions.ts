@@ -82,6 +82,12 @@ export async function sessionAction(request: IRequest, env: BoardEnv, who: { use
 			if (!isRequester) return forbidden()
 			if (status !== 'active') return invalidState()
 			update = { status: 'ended', endedAt: now, endedBy: who.userId, autoEnded: false, deleteAt }
+			// 呼び出し中・通話中なら、通話も終わらせる
+			if (s.call && typeof s.call === 'object') {
+				const c = s.call as { status?: string }
+				if (c.status === 'ringing' || c.status === 'connected')
+					update.call = { ...c, status: c.status === 'ringing' ? 'canceled' : 'ended', endedAt: now, endedBy: who.userId }
+			}
 			break
 
 		case 'resume': // 承認されたことがあるセッションだけ、どちらからでも再開できる

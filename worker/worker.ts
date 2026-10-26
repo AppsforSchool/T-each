@@ -1,6 +1,7 @@
 import { AutoRouter, error, type IRequest } from 'itty-router'
 import { verifyFirebaseIdToken } from './firebaseAuth'
 import { boardConnect, issueBoardToken } from './board'
+import { callAction, iceServers } from './calls'
 import { uploadImage, uploadSessionImage } from './images'
 import { sendMessage } from './messages'
 import { createSession } from './sessions'
@@ -38,15 +39,15 @@ export async function authenticate(request: Request, env: Env): Promise<Authenti
 	return { uid: payload.sub, userId: local }
 }
 
-type AuthedHandler = (request: IRequest, env: Env, who: Authenticated) => Promise<Response>
+type AuthedHandler = (request: IRequest, env: Env, who: Authenticated, ctx: ExecutionContext) => Promise<Response>
 
 /** ログインを検証してから、処理を呼ぶ。検証に失敗したら 401 を返す。 */
 const authed =
 	(handler: AuthedHandler) =>
-	async (request: IRequest, env: Env): Promise<Response> => {
+	async (request: IRequest, env: Env, ctx: ExecutionContext): Promise<Response> => {
 		const who = await authenticate(request, env)
 		if (!who) return error(401, { error: 'unauthorized', message: 'ログインが必要です' })
-		return handler(request, env, who)
+		return handler(request, env, who, ctx)
 	}
 
 const router = AutoRouter<IRequest, [env: Env, ctx: ExecutionContext]>({
@@ -60,6 +61,8 @@ const router = AutoRouter<IRequest, [env: Env, ctx: ExecutionContext]>({
 	.post('/api/sessions/:id/messages', authed(sendMessage))
 	.post('/api/sessions/:id/images', authed(uploadSessionImage))
 	.post('/api/sessions/:id/board-token', authed(issueBoardToken))
+	.post('/api/ice-servers', authed(iceServers))
+	.post('/api/sessions/:id/call/:action', authed(callAction))
 	// ボードの接続は、Firebaseのログインではなく、上のトークンで認証する（WebSocketはヘッダーを付けられないため）
 	.get('/api/board/:id/connect', boardConnect)
 	.post('/api/sessions/:id/:action', authed(sessionAction))
