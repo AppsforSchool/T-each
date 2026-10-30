@@ -1,0 +1,77 @@
+    // =====================================================================
+    // T-each（ここから）
+    // 書き込みは、基本的にWorker（サービスアカウント）だけが行う。サービスアカウントは、ルールを通らない。
+    // クライアントが直接書けるのは、自分の既読時刻（lastRead）と、活動時刻（lastActivityAt）だけ。
+    // 一覧を取得するときは、必ず where('memberIds', 'array-contains', 自分のID) を付けること。
+    // =====================================================================
+    function teachMyId() {
+      return request.auth.token.email.split('@')[0];
+    }
+
+    match /teach_sessions/{sessionId} {
+      allow read: if request.auth != null
+        && teachMyId() in resource.data.memberIds;
+
+      allow create, delete: if false;
+
+      allow update: if request.auth != null
+        && teachMyId() in resource.data.memberIds
+        && (
+          // 自分の既読時刻だけを、現在時刻にする
+          (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastRead'])
+            && request.resource.data.lastRead.diff(resource.data.lastRead).affectedKeys().hasOnly([teachMyId()])
+            && request.resource.data.lastRead[teachMyId()] == request.time)
+          ||
+          // 活動時刻だけを、現在時刻にする（active のときだけ）
+          (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastActivityAt'])
+            && resource.data.status == 'active'
+            && request.resource.data.lastActivityAt == request.time)
+        );
+
+      match /messages/{messageId} {
+        allow read: if request.auth != null
+          && teachMyId() in get(/databases/$(database)/documents/teach_sessions/$(sessionId)).data.memberIds;
+        allow write: if false;
+      }
+
+      // ---- M5：通話の接続情報（SDP・ICE候補）。参加者が、通話中だけ、自分の分を作成できる。更新・削除は、Workerだけ ----
+      match /signals/{signalId} {
+        function teachSession() {
+          return get(/databases/$(database)/documents/teach_sessions/$(sessionId)).data;
+        }
+
+        allow read: if request.auth != null
+          && teachMyId() in teachSession().memberIds;
+
+        allow create: if request.auth != null
+          && teachMyId() in teachSession().memberIds
+          && teachSession().get('call', null) != null
+          && teachSession().call.status in ['ringing', 'connected']
+          && request.resource.data.keys().hasOnly(['callId', 'from', 'to', 'type', 'data', 'createdAt'])
+          && request.resource.data.keys().hasAll(['callId', 'from', 'to', 'type', 'data', 'createdAt'])
+          && request.resource.data.callId == teachSession().call.id
+          && request.resource.data.from == teachMyId()
+          && request.resource.data.to in teachSession().memberIds
+          && request.resource.data.to != teachMyId()
+          && request.resource.data.type in ['sdp', 'ice', 'restart']
+          && request.resource.data.data is string
+          && request.resource.data.data.size() < 20000
+          && request.resource.data.createdAt == request.time;
+
+        allow update, delete: if false;
+      }
+
+      // secrets（ImgBBの削除用URLなど）は、ここに許可を書かない＝デフォルトの拒否になる（Workerだけが読み書きできる）
+    }
+    // ---- M6：在席の記録。本人だけが、自分の文書に、「最後に見た時刻」と「いま開いているセッション」を書ける。読めるのはWorkerだけ ----
+    match /teach_presence/{userId} {
+      allow read: if false;
+      allow create, update: if request.auth != null
+        && userId == teachMyId()
+        && request.resource.data.keys().hasOnly(['lastSeenAt', 'openSessionId'])
+        && request.resource.data.lastSeenAt == request.time
+        && (request.resource.data.openSessionId == null || request.resource.data.openSessionId is string);
+      allow delete: if false;
+    }
+
+    // T-each（ここまで）

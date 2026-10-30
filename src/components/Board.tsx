@@ -24,7 +24,7 @@ import { useUser } from '../lib/users'
 
 // カーソルの色は、サイトの配色に合わせる。依頼した側＝メインカラー（青緑）、依頼された側＝アクセントカラー（藍色）。
 // （styles.css の --primary と --accent と、同じ色）
-const CURSOR_COLOR = { requester: '#1f9d6b', tutor: '#3b6fe8' } as const
+const CURSOR_COLOR = { requester: '#1e9e8f', tutor: '#5b6ee8' } as const
 export type BoardRole = keyof typeof CURSOR_COLOR
 
 /** 名前を読み込んでから、ボードを開く（接続したあとに、名前が変わって、つなぎ直しになるのを避ける） */

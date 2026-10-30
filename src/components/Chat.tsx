@@ -17,7 +17,6 @@ import { ApiError, apiFetch } from '../api'
 import { useAuth } from '../auth'
 import { db } from '../firebase'
 import { useUser } from '../lib/users'
-import { Icon } from './Icons'
 
 type Msg = { id: string; data: MessageDoc<Timestamp> }
 
@@ -48,23 +47,12 @@ function SystemNote({ m }: { m: MessageDoc<Timestamp> }) {
 function Bubble({ m, mine }: { m: MessageDoc<Timestamp>; mine: boolean }) {
 	const sender = useUser(mine ? null : m.senderId)
 	const time = m.createdAt.toDate().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })
-	if (mine)
-		return (
-			<div className="chat-row mine">
-				<div className="chat-bubble-wrap">
-					<span className="chat-meta">{time}</span>
-					<div className="chat-bubble">{m.text}</div>
-				</div>
-			</div>
-		)
 	return (
-		<div className="chat-row">
-			{sender?.imageUrl ? <img className="avatar xs" src={sender.imageUrl} alt="" /> : <span className="avatar xs" />}
+		<div className={`chat-row ${mine ? 'mine' : ''}`}>
 			<div className="chat-bubble-wrap">
-				<span className="chat-meta">
-					<b>{sender?.name ?? '…'}</b> {time}
-				</span>
+				{!mine && <span className="chat-name">{sender?.name ?? '…'}</span>}
 				<div className="chat-bubble">{m.text}</div>
+				<span className="chat-time">{time}</span>
 			</div>
 		</div>
 	)
@@ -177,7 +165,7 @@ export function Chat({
 					<div className="chat-input-row">
 						<textarea
 							className="input"
-							rows={1}
+							rows={2}
 							value={text}
 							maxLength={LIMITS.chatMessageMaxChars}
 							placeholder="メッセージ（Ctrl + Enter で送信）"
@@ -189,8 +177,8 @@ export function Chat({
 								}
 							}}
 						/>
-						<button className="btn-send" onClick={send} disabled={sending || !text.trim()} aria-label="送信" title="送信">
-							<Icon name="send" size={20} />
+						<button className="btn" onClick={send} disabled={sending || !text.trim()}>
+							送信
 						</button>
 					</div>
 				</div>

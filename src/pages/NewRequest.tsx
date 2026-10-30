@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { LIMITS } from '../../shared/limits'
 import { ApiError, apiFetch } from '../api'
-import { Layout } from '../components/Layout'
+import { Header } from '../components/Header'
 import { db } from '../firebase'
 import { hedged } from '../lib/hedged'
 import { prepareImage } from '../lib/image'
@@ -88,8 +88,9 @@ export function NewRequest() {
 	}
 
 	return (
-		<Layout>
-			<h1 className="page-title">依頼する</h1>
+		<>
+			<Header />
+			<main className="page">
 				{tutor === null && <p className="muted">読み込み中…</p>}
 				{tutor === 'notfound' && (
 					<div className="card">
@@ -137,8 +138,7 @@ export function NewRequest() {
 								))}
 								{picked.length < LIMITS.maxImagesPerRequest && (
 									<label className="thumb thumb-add">
-										<span className="plus">＋</span>
-										<small>画像を追加</small>
+										＋
 										<input
 											type="file"
 											accept="image/*"
@@ -173,13 +173,12 @@ export function NewRequest() {
 
 						{error && <p className="error">{error}</p>}
 						{status && <p className="muted">{status}</p>}
-						<div className="form-actions">
-							<button className="btn" onClick={submit} disabled={!canSubmit}>
-								{busy ? '送信中…' : '依頼する'}
-							</button>
-						</div>
+						<button className="btn" onClick={submit} disabled={!canSubmit}>
+							{busy ? '送信中…' : '依頼する'}
+						</button>
 					</div>
 				)}
-		</Layout>
+			</main>
+		</>
 	)
 }
