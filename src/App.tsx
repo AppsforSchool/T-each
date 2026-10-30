@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { useAuth } from './auth'
 import { CallOverlay } from './components/CallOverlay'
+import { PresenceReporter } from './components/Presence'
 import { Home } from './pages/Home'
 import { Login } from './pages/Login'
 import { NewRequest } from './pages/NewRequest'
@@ -19,6 +20,7 @@ export function App() {
 	return (
 		<>
 		{user && <CallOverlay />}
+		{user && <PresenceReporter />}
 		<Routes>
 			<Route path="/login" element={user ? <Navigate to="/" replace /> : <Login />} />
 			<Route path="/" element={<RequireAuth><Home /></RequireAuth>} />

@@ -5,6 +5,7 @@ import { type BoardEnv, ensureBoard, kickBoard } from './board'
 import type { FsData } from './firestore'
 import { fsBatch, fsGet } from './firestore'
 import { fail } from './http'
+import { notify, type PushEnv } from './push'
 
 const ACTIONS = ['approve', 'decline', 'withdraw', 'end', 'resume'] as const
 type SessionAction = (typeof ACTIONS)[number]
@@ -22,7 +23,12 @@ const KIND: Record<SessionAction, SystemKind> = {
  * POST /api/sessions/:id/:action — セッションの状態を変える。
  * 誰が・どの状態から・何にできるかは、ここ1か所で決める（画面やFirestoreのルールには任せない）。
  */
-export async function sessionAction(request: IRequest, env: BoardEnv, who: { userId: string }): Promise<Response> {
+export async function sessionAction(
+	request: IRequest,
+	env: BoardEnv & PushEnv,
+	who: { userId: string },
+	ctx: ExecutionContext
+): Promise<Response> {
 	const sessionId = String(request.params.id ?? '')
 	const action = String(request.params.action ?? '') as SessionAction
 	if (!(ACTIONS as readonly string[]).includes(action)) return fail(404, 'unknown_action', '不明な操作です')
@@ -124,7 +130,16 @@ export async function sessionAction(request: IRequest, env: BoardEnv, who: { use
 	// 権限が変わる（終了で読み取り専用、再開で書き込み可）ので、接続中のボードを切って、再接続させる
 	if ((action === 'end' || action === 'resume') && s.boardInitialized === true) await kickBoard(env, sessionId)
 
-	// 終了・再開で、ボードの権限が変わる。接続を切って、再接続（新しいトークン）を促す。
+	// 相手への通知。依頼者への「承認・拒否」、先生への「取り下げ」、再開した人の相手への「再開」
+	const partnerId = memberIds.find((m) => m !== who.userId) as string
+	const PUSH: Partial<Record<SessionAction, { title: string; body: (name: string) => string }>> = {
+		approve: { title: '依頼が承認されました', body: (n) => `${n}さんが、依頼を承認しました` },
+		decline: { title: '依頼が断られました', body: (n) => `${n}さんが、依頼を断りました` },
+		withdraw: { title: '依頼が取り下げられました', body: (n) => `${n}さんが、依頼を取り下げました` },
+		resume: { title: 'セッションが再開されました', body: (n) => `${n}さんが、セッションを再開しました` },
+	}
+	const push = PUSH[action]
+	if (push) notify(env, ctx, { to: [partnerId], fromId: who.userId, sessionId, ...push })
 
 	return Response.json({ ok: true, status: update.status })
 }

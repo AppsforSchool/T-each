@@ -4,6 +4,7 @@ import { boardConnect, issueBoardToken } from './board'
 import { callAction, iceServers } from './calls'
 import { uploadImage, uploadSessionImage } from './images'
 import { sendMessage } from './messages'
+import { pushConfig } from './push'
 import { createSession } from './sessions'
 import { sessionAction } from './transitions'
 
@@ -21,6 +22,10 @@ export interface Env {
 	/** ボード1つ（＝セッション1つ）につき、Durable Objectを1つ使う。wrangler.toml の bindings で登録している */
 	TLDRAW_DURABLE_OBJECT: DurableObjectNamespace
 	ALLOWED_ORIGINS: string
+	/** OneSignalのApp ID（M6）。Secretとして登録する。未登録なら、通知は送らない */
+	ONESIGNAL_APP_ID?: string
+	/** OneSignalのREST APIキー（M6）。Secretとして登録する */
+	ONESIGNAL_REST_API_KEY?: string
 }
 
 const LOGIN_DOMAIN = 'appsforschool.com'
@@ -62,6 +67,7 @@ const router = AutoRouter<IRequest, [env: Env, ctx: ExecutionContext]>({
 	.post('/api/sessions/:id/images', authed(uploadSessionImage))
 	.post('/api/sessions/:id/board-token', authed(issueBoardToken))
 	.post('/api/ice-servers', authed(iceServers))
+	.post('/api/push-config', authed(pushConfig))
 	.post('/api/sessions/:id/call/:action', authed(callAction))
 	// ボードの接続は、Firebaseのログインではなく、上のトークンで認証する（WebSocketはヘッダーを付けられないため）
 	.get('/api/board/:id/connect', boardConnect)

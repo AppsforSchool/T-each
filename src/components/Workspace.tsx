@@ -3,7 +3,9 @@ import { useEffect, useState } from 'react'
 import type { SessionDoc } from '../../shared/types'
 import { useAuth } from '../auth'
 import { Board } from './Board'
+import { useUser } from '../lib/users'
 import { Chat } from './Chat'
+import { Icon } from './Icons'
 
 function useMedia(query: string): boolean {
 	const [matches, setMatches] = useState(() => window.matchMedia(query).matches)
@@ -35,17 +37,54 @@ export function Workspace({ sessionId, s }: { sessionId: string; s: SessionDoc<T
 		!!s.lastMessageAt &&
 		(!myRead || s.lastMessageAt.toMillis() > myRead.toMillis())
 
+	const requester = useUser(s.requesterId)
+	const tutor = useUser(s.tutorId)
+
 	const chat = (active: boolean) => (
 		<Chat sessionId={sessionId} myLastRead={myRead} canSend={s.status === 'active'} active={active} />
+	)
+
+	// ボードの上の見出し：参加者と、カーソルの色（ボード側の色と合わせる）
+	const boardHead = (
+		<div className="pane-head">
+			<span className="pane-title">
+				<Icon name="board" size={18} />
+				ボード
+			</span>
+			<span className="legend">
+				<span className="legend-item">
+					<i className="dot-req" />
+					{requester?.name ?? '…'}（依頼者）
+				</span>
+				<span className="legend-item">
+					<i className="dot-tutor" />
+					{tutor?.name ?? '…'}（先生）
+				</span>
+			</span>
+		</div>
+	)
+	const chatHead = (
+		<div className="pane-head">
+			<span className="pane-title">
+				<Icon name="chat" size={18} />
+				チャット
+			</span>
+		</div>
 	)
 
 	if (wide) {
 		return (
 			<div className="workspace wide">
-				<div className="ws-board">
-					<Board sessionId={sessionId} role={role} />
+				<div className="ws-board pane-card">
+					{boardHead}
+					<div className="pane-body">
+						<Board sessionId={sessionId} role={role} />
+					</div>
 				</div>
-				<div className="ws-chat">{chat(true)}</div>
+				<div className="ws-chat pane-card">
+					{chatHead}
+					<div className="pane-body">{chat(true)}</div>
+				</div>
 			</div>
 		)
 	}
@@ -61,11 +100,13 @@ export function Workspace({ sessionId, s }: { sessionId: string; s: SessionDoc<T
 					チャット{unread && <span className="dot" />}
 				</button>
 			</div>
-			<div className="ws-pane" style={{ display: tab === 'board' ? 'block' : 'none' }}>
-				<Board sessionId={sessionId} role={role} />
+			<div className="ws-pane pane-card" style={{ display: tab === 'board' ? 'flex' : 'none' }}>
+				<div className="pane-body">
+					<Board sessionId={sessionId} role={role} />
+				</div>
 			</div>
-			<div className="ws-pane" style={{ display: tab === 'chat' ? 'block' : 'none' }}>
-				{chat(tab === 'chat')}
+			<div className="ws-pane pane-card" style={{ display: tab === 'chat' ? 'flex' : 'none' }}>
+				<div className="pane-body">{chat(tab === 'chat')}</div>
 			</div>
 		</div>
 	)

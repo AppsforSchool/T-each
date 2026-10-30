@@ -2,7 +2,8 @@ import { collection, getDocs } from 'firebase/firestore'
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth'
-import { Header } from '../components/Header'
+import { Icon } from '../components/Icons'
+import { Layout } from '../components/Layout'
 import { db } from '../firebase'
 import { hedged } from '../lib/hedged'
 
@@ -45,35 +46,31 @@ export function Users() {
 	}, [users, query])
 
 	return (
-		<>
-			<Header />
-			<main className="page">
-				<input
-					className="input"
-					placeholder="名前で検索"
-					value={query}
-					onChange={(e) => setQuery(e.target.value)}
-				/>
-				{error && <p className="error">ユーザーの一覧を読み込めませんでした。</p>}
-				{!error && filtered === null && <p className="muted">読み込み中…</p>}
-				{filtered && filtered.length === 0 && <p className="muted">該当するユーザーがいません。</p>}
-				{filtered && filtered.length > 0 && (
-					<div className="card user-list">
-						{filtered.map((u) => (
-							<div className="user-row" key={u.id}>
-								{u.imageUrl ? <img className="avatar" src={u.imageUrl} alt="" /> : <div className="avatar" />}
-								<div className="user-row-text" style={{ flex: 1 }}>
-									<b>{u.name}</b>
-									{u.profileText && <p className="muted clamp">{u.profileText}</p>}
-								</div>
-								<button className="btn small" onClick={() => navigate(`/new?tutor=${encodeURIComponent(u.id)}`)}>
-									依頼する
-								</button>
+		<Layout>
+			<h1 className="page-title">ユーザー一覧</h1>
+			<label className="search">
+				<Icon name="search" size={18} />
+				<input placeholder="ユーザー名で検索" value={query} onChange={(e) => setQuery(e.target.value)} />
+			</label>
+			{error && <p className="error">ユーザーの一覧を読み込めませんでした。</p>}
+			{!error && filtered === null && <p className="muted">読み込み中…</p>}
+			{filtered && filtered.length === 0 && <p className="muted">該当するユーザーがいません。</p>}
+			{filtered && filtered.length > 0 && (
+				<div className="card list-card">
+					{filtered.map((u) => (
+						<div className="user-row" key={u.id}>
+							{u.imageUrl ? <img className="avatar" src={u.imageUrl} alt="" /> : <div className="avatar" />}
+							<div className="user-row-text" style={{ flex: 1 }}>
+								<b>{u.name}</b>
+								{u.profileText && <p className="muted clamp">{u.profileText}</p>}
 							</div>
-						))}
-					</div>
-				)}
-			</main>
-		</>
+							<button className="btn small" onClick={() => navigate(`/new?tutor=${encodeURIComponent(u.id)}`)}>
+								依頼する
+							</button>
+						</div>
+					))}
+				</div>
+			)}
+		</Layout>
 	)
 }

@@ -6,10 +6,11 @@ import { LIMITS } from '../../shared/limits'
 import type { SessionDoc } from '../../shared/types'
 import { useAuth } from '../auth'
 import { CallButton } from '../components/CallButton'
-import { Header } from '../components/Header'
+import { Icon } from '../components/Icons'
+import { Layout } from '../components/Layout'
 import { Workspace } from '../components/Workspace'
 import { db } from '../firebase'
-import { partnerIdOf, roleLabelOf, runSessionAction, type SessionAction, STATUS_LABEL } from '../lib/sessions'
+import { partnerIdOf, runSessionAction, type SessionAction, sessionTitle, statusLabelOf } from '../lib/sessions'
 import { useUser } from '../lib/users'
 
 export function SessionPage() {
@@ -49,26 +50,20 @@ export function SessionPage() {
 
 	if (s === null)
 		return (
-			<>
-				<Header />
-				<main className="page">
-					<p className="muted">読み込み中…</p>
-				</main>
-			</>
+			<Layout sidebar={false}>
+				<p className="muted">読み込み中…</p>
+			</Layout>
 		)
 	if (s === 'notfound')
 		return (
-			<>
-				<Header />
-				<main className="page">
-					<div className="card">
-						<p>セッションが見つかりません。削除されたか、参加者ではありません。</p>
-						<p style={{ marginTop: 8 }}>
-							<Link to="/">ホームへ</Link>
-						</p>
-					</div>
-				</main>
-			</>
+			<Layout sidebar={false}>
+				<div className="card solo">
+					<p>セッションが見つかりません。削除されたか、参加者ではありません。</p>
+					<p style={{ marginTop: 8 }}>
+						<Link to="/requests">依頼一覧へ</Link>
+					</p>
+				</div>
+			</Layout>
 		)
 
 	// ボードとチャットを表示するのは、進行中と、承認されたことがある終了中のセッション
@@ -76,156 +71,165 @@ export function SessionPage() {
 	const isTutor = s.tutorId === userId
 	const isRequester = s.requesterId === userId
 	const name = partner?.name ?? '…'
+	const partnerRole = isTutor ? '依頼者' : '先生'
+	const avatar = partner?.imageUrl ? <img className="avatar sm" src={partner.imageUrl} alt="" /> : <span className="avatar sm" />
+
+	const side = (
+		<aside className={`session-side card ${hasWorkspace ? '' : 'solo'}`}>
+			<Link to="/requests" className="back-link">
+				<Icon name="back" size={18} />
+				依頼一覧に戻る
+			</Link>
+
+			<div className="side-block">
+				<span className={`badge ${s.status}`}>{statusLabelOf(s, userId)}</span>
+				<h1 className="side-title">{sessionTitle(s)}</h1>
+				<div className="profile-row">
+					{avatar}
+					<p>
+						相手：<b>{name}</b>（{partnerRole}）
+					</p>
+				</div>
+			</div>
+
+			{s.source.imageUrls.length > 0 && (
+				<div className="thumbs">
+					{s.source.imageUrls.map((u) => (
+						<a key={u} className="thumb" href={u} target="_blank" rel="noreferrer">
+							<img src={u} alt="" />
+						</a>
+					))}
+				</div>
+			)}
+
+			<dl className="meta">
+				<div>
+					<dt>
+						<Icon name="doc" size={16} />
+						依頼内容
+					</dt>
+					<dd>
+						{s.source.text ? <span className="pre">{s.source.text}</span> : <span className="muted">（問題文はありません）</span>}
+						{s.source.comment && (
+							<span className="pre meta-comment">
+								<span className="muted">コメント：</span>
+								{s.source.comment}
+							</span>
+						)}
+					</dd>
+				</div>
+				<div>
+					<dt>
+						<Icon name="clock" size={16} />
+						{s.approvedAt ? '開始時刻' : '依頼日時'}
+					</dt>
+					<dd>{(s.approvedAt ?? s.createdAt).toDate().toLocaleString('ja-JP')}</dd>
+				</div>
+			</dl>
+
+			{s.status === 'active' && (
+				<div className="side-call">
+					<CallButton sessionId={id!} />
+				</div>
+			)}
+			{s.status === 'requested' && isTutor && <p className="notice">{name}さんから、依頼が届いています。</p>}
+			{s.status === 'requested' && isRequester && <p className="notice">{name}さんの返答を、待っています。</p>}
+			{s.status === 'declined' && (
+				<p className="notice">
+					{s.autoDeclined ? '返答がなかったため、自動的に拒否扱いになりました。' : isTutor ? 'あなたが、断りました。' : `${name}さんに、断られました。`}
+					{s.declineReason && <span className="quote">理由：{s.declineReason}</span>}
+				</p>
+			)}
+			{s.status === 'ended' && (
+				<p className="notice">
+					{s.autoEnded ? '一定期間、活動がなかったため、自動的に終了しました。' : s.endedBy === userId ? 'あなたが、終了しました。' : `${name}さんが、終了しました。`}
+				</p>
+			)}
+			{s.deleteAt && <p className="muted">{s.deleteAt.toDate().toLocaleDateString('ja-JP')} に削除されます。</p>}
+
+			{error && <p className="error">{error}</p>}
+
+			{s.status === 'requested' && isTutor && !showDecline && (
+				<div className="side-actions">
+					<button className="btn" disabled={busy} onClick={() => run('approve')}>
+						承認する
+					</button>
+					<button className="btn ghost" disabled={busy} onClick={() => setShowDecline(true)}>
+						断る
+					</button>
+				</div>
+			)}
+			{s.status === 'requested' && isTutor && showDecline && (
+				<div className="form">
+					<label>
+						<span className="label">断る理由（任意）</span>
+						<textarea
+							className="input"
+							rows={3}
+							value={reason}
+							maxLength={LIMITS.declineReasonMaxChars}
+							onChange={(e) => setReason(e.target.value)}
+							placeholder="例：自分には教えられない／教えるのが難しい／忙しい"
+						/>
+					</label>
+					<div className="side-actions">
+						<button className="btn" disabled={busy} onClick={() => run('decline', { reason })}>
+							断る
+						</button>
+						<button className="btn ghost" disabled={busy} onClick={() => setShowDecline(false)}>
+							戻る
+						</button>
+					</div>
+				</div>
+			)}
+			{s.status === 'requested' && isRequester && (
+				<div className="side-actions">
+					<button className="btn ghost" disabled={busy} onClick={() => run('withdraw', {}, 'この依頼を取り下げますか？')}>
+						取り下げる
+					</button>
+				</div>
+			)}
+			{s.status === 'active' &&
+				(isRequester ? (
+					<button
+						className="btn danger-outline"
+						disabled={busy}
+						onClick={() => run('end', {}, 'このセッションを終了しますか？（あとで再開できます）')}
+					>
+						セッションを終了
+					</button>
+				) : (
+					<p className="muted">終了できるのは、依頼した側だけです。</p>
+				))}
+			{s.status === 'ended' && s.approvedAt && (
+				<button className="btn" disabled={busy} onClick={() => run('resume')}>
+					再開する
+				</button>
+			)}
+			{(s.status === 'declined' || (s.status === 'ended' && !s.approvedAt)) && (
+				<p className="muted">この依頼は、再開できません。必要なら、新しく依頼してください。</p>
+			)}
+		</aside>
+	)
+
+	if (!hasWorkspace) return <Layout sidebar={false}>{side}</Layout>
 
 	return (
-		<>
-			<Header />
-			<main className={`page ${hasWorkspace ? 'page-wide' : ''}`}>
-				<section className="card">
-					<div className="profile-row">
-						{partner?.imageUrl ? <img className="avatar" src={partner.imageUrl} alt="" /> : <div className="avatar" />}
-						<div>
-							<b>{name}</b> <span className={`badge ${s.status}`}>{STATUS_LABEL[s.status]}</span>
-							<p className="muted">
-								あなたは「{roleLabelOf(s, userId)}」側 ／ 依頼日 {s.createdAt.toDate().toLocaleString('ja-JP')}
-							</p>
+		<Layout sidebar={false} wide>
+			<div className="session-grid">
+				{side}
+				{s.status === 'active' && (
+					<div className="session-topbar card">
+						{avatar}
+						<div className="session-topbar-text">
+							<b>{name}</b>
+							<span className="muted">{partnerRole}</span>
 						</div>
+						<CallButton sessionId={id!} />
 					</div>
-
-					{s.status === 'active' && (
-						<p className="actions" style={{ marginTop: 10 }}>
-							<CallButton sessionId={id!} />
-						</p>
-					)}
-					{s.status === 'requested' && isTutor && <p style={{ marginTop: 10 }}>{name}さんから、依頼が届いています。</p>}
-					{s.status === 'requested' && isRequester && <p style={{ marginTop: 10 }}>{name}さんの返答を、待っています。</p>}
-					{s.status === 'declined' && (
-						<p style={{ marginTop: 10 }}>
-							{s.autoDeclined
-								? '返答がなかったため、自動的に拒否扱いになりました。'
-								: isTutor
-									? 'あなたが、断りました。'
-									: `${name}さんに、断られました。`}
-							{s.declineReason && <span className="quote">理由：{s.declineReason}</span>}
-						</p>
-					)}
-					{s.status === 'ended' && (
-						<p style={{ marginTop: 10 }}>
-							{s.autoEnded
-								? '一定期間、活動がなかったため、自動的に終了しました。'
-								: s.endedBy === userId
-									? 'あなたが、終了しました。'
-									: `${name}さんが、終了しました。`}
-						</p>
-					)}
-					{s.deleteAt && (
-						<p className="muted">{s.deleteAt.toDate().toLocaleDateString('ja-JP')} に削除されます。</p>
-					)}
-				</section>
-
-				<section className="card">
-					<h2>依頼の内容</h2>
-					{s.source.text ? <p className="pre">{s.source.text}</p> : <p className="muted">（問題文はありません）</p>}
-					{s.source.comment && (
-						<p className="pre" style={{ marginTop: 8 }}>
-							<span className="muted">コメント：</span>
-							{s.source.comment}
-						</p>
-					)}
-					{s.source.imageUrls.length > 0 && (
-						<div className="thumbs">
-							{s.source.imageUrls.map((u) => (
-								<a key={u} className="thumb" href={u} target="_blank" rel="noreferrer">
-									<img src={u} alt="" />
-								</a>
-							))}
-						</div>
-					)}
-				</section>
-
-				{hasWorkspace && <Workspace sessionId={id!} s={s} />}
-
-				<section className="card">
-					<h2>操作</h2>
-					{error && <p className="error">{error}</p>}
-
-					{s.status === 'requested' && isTutor && !showDecline && (
-						<p className="actions">
-							<button className="btn" disabled={busy} onClick={() => run('approve')}>
-								承認する
-							</button>
-							<button className="btn ghost" disabled={busy} onClick={() => setShowDecline(true)}>
-								断る
-							</button>
-						</p>
-					)}
-					{s.status === 'requested' && isTutor && showDecline && (
-						<div className="form">
-							<label>
-								<span className="label">断る理由（任意）</span>
-								<textarea
-									className="input"
-									rows={3}
-									value={reason}
-									maxLength={LIMITS.declineReasonMaxChars}
-									onChange={(e) => setReason(e.target.value)}
-									placeholder="例：自分には教えられない／教えるのが難しい／忙しい"
-								/>
-							</label>
-							<p className="actions">
-								<button className="btn" disabled={busy} onClick={() => run('decline', { reason })}>
-									断る
-								</button>
-								<button className="btn ghost" disabled={busy} onClick={() => setShowDecline(false)}>
-									戻る
-								</button>
-							</p>
-						</div>
-					)}
-					{s.status === 'requested' && isRequester && (
-						<p className="actions">
-							<button
-								className="btn ghost"
-								disabled={busy}
-								onClick={() => run('withdraw', {}, 'この依頼を取り下げますか？')}
-							>
-								取り下げる
-							</button>
-						</p>
-					)}
-					{s.status === 'active' && (
-						<>
-							{isRequester ? (
-								<p className="actions">
-									<button
-										className="btn ghost"
-										disabled={busy}
-										onClick={() => run('end', {}, 'このセッションを終了しますか？（あとで再開できます）')}
-									>
-										終了する
-									</button>
-								</p>
-							) : (
-								<p className="muted">終了できるのは、依頼した側だけです。</p>
-							)}
-						</>
-					)}
-					{s.status === 'ended' && s.approvedAt && (
-						<p className="actions">
-							<button className="btn" disabled={busy} onClick={() => run('resume')}>
-								再開する
-							</button>
-						</p>
-					)}
-					{(s.status === 'declined' || (s.status === 'ended' && !s.approvedAt)) && (
-						<p className="muted">この依頼は、再開できません。必要なら、新しく依頼してください。</p>
-					)}
-				</section>
-
-				<p>
-					<Link to="/">← ホームへ</Link>
-				</p>
-			</main>
-		</>
+				)}
+				<Workspace sessionId={id!} s={s} />
+			</div>
+		</Layout>
 	)
 }

@@ -2,6 +2,7 @@ import { onAuthStateChanged, signInWithEmailAndPassword, signOut, type User } fr
 import { createContext, type ReactNode, useContext, useEffect, useState } from 'react'
 import { LOGIN_DOMAIN } from './config'
 import { auth } from './firebase'
+import { logoutPush } from './lib/push'
 
 type AuthState = {
 	user: User | null
@@ -40,7 +41,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 		login: async (id, password) => {
 			await signInWithEmailAndPassword(auth, `${id.trim()}@${LOGIN_DOMAIN}`, password)
 		},
-		logout: () => signOut(auth),
+		logout: async () => {
+			await logoutPush()
+			await signOut(auth)
+		},
 	}
 	return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }

@@ -2,6 +2,7 @@ import type { IRequest } from 'itty-router'
 import { LIMITS } from '../shared/limits'
 import type { CallState, SystemKind } from '../shared/types'
 import type { FsData, FsEnv } from './firestore'
+import { notify, type PushEnv } from './push'
 import { fsBatch, fsGet, fsQuery } from './firestore'
 import { fail } from './http'
 
@@ -70,13 +71,14 @@ type Plan = {
 	message?: { kind: SystemKind; senderId: string; text: string }
 	touchActivity?: boolean
 	cleanupCallId?: string[] // 終わったあとに、接続情報を消す通話ID
+	push?: { title: string; body: (name: string) => string } // 着信側への通知
 	res: Response
 }
 
 /** POST /api/sessions/:id/call/:action */
 export async function callAction(
 	request: IRequest,
-	env: FsEnv,
+	env: PushEnv,
 	who: { userId: string },
 	ctx: ExecutionContext
 ): Promise<Response> {
@@ -140,14 +142,15 @@ export async function callAction(
 						call: { ...base, status: 'busy', endedAt: now },
 						message: { kind: 'missedCall', senderId: me, text: '' },
 						cleanupCallId,
+						push: { title: '不在着信', body: (n) => `${n}さんから、不在着信がありました` },
 						res: Response.json({ ok: true, status: 'busy', callId: base.id }),
 					}
 				} else {
-					// M6：ここで、着信側へプッシュ通知を送る
 					plan = {
 						call: base,
 						touchActivity: true,
 						cleanupCallId,
+						push: { title: '着信', body: (n) => `${n}さんから、通話の着信です` },
 						res: Response.json({ ok: true, status: 'ringing', callId: base.id }),
 					}
 				}
@@ -260,6 +263,7 @@ export async function callAction(
 			continue // 読み直して、やり直す
 		}
 		for (const id of plan.cleanupCallId ?? []) ctx.waitUntil(cleanupSignals(env, sessionId, id))
+		if (plan.push) notify(env, ctx, { to: [partnerId], fromId: me, sessionId, ...plan.push })
 		return plan.res
 	}
 	return fail(409, 'invalid_state', '通話の状態を更新できませんでした。もう一度お試しください')

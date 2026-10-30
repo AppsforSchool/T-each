@@ -1,6 +1,7 @@
 import type { IRequest } from 'itty-router'
 import { LIMITS } from '../shared/limits'
-import type { FsEnv } from './firestore'
+import type { PushEnv } from './push'
+import { clip, notify } from './push'
 import { fsBatch, fsGet } from './firestore'
 import { fail } from './http'
 
@@ -8,7 +9,12 @@ import { fail } from './http'
 const recent = new Map<string, number[]>()
 
 /** POST /api/sessions/:id/messages — チャットのメッセージを送る（active のセッションの参加者だけ）。 */
-export async function sendMessage(request: IRequest, env: FsEnv, who: { userId: string }): Promise<Response> {
+export async function sendMessage(
+	request: IRequest,
+	env: PushEnv,
+	who: { userId: string },
+	ctx: ExecutionContext
+): Promise<Response> {
 	const sessionId = String(request.params.id ?? '')
 	if (!/^[0-9a-f-]{36}$/.test(sessionId)) return fail(404, 'not_found', 'セッションが見つかりません')
 
@@ -47,5 +53,14 @@ export async function sendMessage(request: IRequest, env: FsEnv, who: { userId: 
 			data: { type: 'message', senderId: who.userId, text, kind: null, createdAt: now },
 		},
 	])
+	// 相手へ通知（相手が、このセッションを開いている間は、送らない）
+	notify(env, ctx, {
+		to: memberIds.filter((m) => m !== who.userId),
+		fromId: who.userId,
+		title: '新着メッセージ',
+		body: (name) => `${name}：${clip(text)}`,
+		sessionId,
+		skipIfOpen: true,
+	})
 	return Response.json({ ok: true })
 }

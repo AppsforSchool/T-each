@@ -33,6 +33,7 @@ export const LIMITS = {
 	// 通話
 	ringSeconds: 60, // 呼び出し時間（仮）
 	reconnectSeconds: 30, // 通話中の切断から、再接続をあきらめるまでの時間（仮）
+	pushPreviewChars: 60, // 通知に出す、メッセージの文字数
 	ringGraceSeconds: 3, // 時間切れの判定の、時計のずれの許容（画面とWorkerで、時計が少しずれていても大丈夫なように）
 	callPingSeconds: 30, // 通話中に、画面がWorkerへ生存を知らせる間隔
 	callStaleSeconds: 90, // 通話中の通知がこの時間なければ、放置された通話として扱う（話中の判定から外す）

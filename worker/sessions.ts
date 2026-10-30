@@ -2,6 +2,7 @@ import { LIMITS } from '../shared/limits'
 import type { SessionDoc, SessionSecrets } from '../shared/types'
 import type { FsData, FsEnv } from './firestore'
 import { fsBatch, fsGet, fsQuery } from './firestore'
+import { notify, type PushEnv } from './push'
 import { fail } from './http'
 
 type CreateBody = {
@@ -26,7 +27,12 @@ function isAllowedImportedUrl(u: string): boolean {
 }
 
 /** POST /api/sessions — 依頼を作る（status: requested）。 */
-export async function createSession(request: Request, env: FsEnv, who: { userId: string }): Promise<Response> {
+export async function createSession(
+	request: Request,
+	env: PushEnv,
+	who: { userId: string },
+	ctx: ExecutionContext
+): Promise<Response> {
 	let body: CreateBody
 	try {
 		body = (await request.json()) as CreateBody
@@ -130,5 +136,12 @@ export async function createSession(request: Request, env: FsEnv, who: { userId:
 		console.error(e)
 		return fail(409, 'conflict', '依頼を作成できませんでした。もう一度お試しください')
 	}
+	notify(env, ctx, {
+		to: [tutorId],
+		fromId: who.userId,
+		title: '依頼が届きました',
+		body: (name) => `${name}さんから、依頼が届きました`,
+		sessionId,
+	})
 	return Response.json({ sessionId }, { status: 201 })
 }

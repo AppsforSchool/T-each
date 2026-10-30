@@ -1,19 +1,57 @@
 import type { Timestamp } from 'firebase/firestore'
 import { collection, onSnapshot, query, where } from 'firebase/firestore'
-import { type ReactNode, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { SessionDoc } from '../../shared/types'
 import { useAuth } from '../auth'
 import { db } from '../firebase'
-import { partnerIdOf, roleLabelOf, runSessionAction, STATUS_LABEL } from '../lib/sessions'
+import { partnerIdOf, roleLabelOf, runSessionAction, sessionTitle, statusLabelOf } from '../lib/sessions'
 import { useUser } from '../lib/users'
+import { Icon } from './Icons'
 
-type Row = { id: string; data: SessionDoc<Timestamp> }
+export type Row = { id: string; data: SessionDoc<Timestamp> }
+export type SessionTab = 'all' | 'pending' | 'active' | 'closed'
 
 const byCreated = (a: Row, b: Row) => b.data.createdAt.toMillis() - a.data.createdAt.toMillis()
 const byActivity = (a: Row, b: Row) => b.data.lastActivityAt.toMillis() - a.data.lastActivityAt.toMillis()
 
-function SessionRow({ row, showResume }: { row: Row; showResume?: boolean }) {
+/** 自分が関わるセッションを、リアルタイムに取得する */
+export function useSessions(): { rows: Row[] | null; error: boolean } {
+	const { userId } = useAuth()
+	const [rows, setRows] = useState<Row[] | null>(null)
+	const [error, setError] = useState(false)
+	useEffect(() => {
+		if (!userId) return
+		// ★ ルールの都合で、必ず memberIds の条件を付ける。並べ替えは、画面側で行う（インデックスを増やさないため）
+		return onSnapshot(
+			query(collection(db, 'teach_sessions'), where('memberIds', 'array-contains', userId)),
+			(snap) => setRows(snap.docs.map((d) => ({ id: d.id, data: d.data() as SessionDoc<Timestamp> }))),
+			() => setError(true)
+		)
+	}, [userId])
+	return { rows, error }
+}
+
+export const isPending = (r: Row) => r.data.status === 'requested'
+export const isClosed = (r: Row) => r.data.status === 'ended' || r.data.status === 'declined'
+
+export function filterRows(rows: Row[], tab: SessionTab): Row[] {
+	switch (tab) {
+		case 'pending':
+			return rows.filter(isPending).sort(byCreated)
+		case 'active':
+			return rows.filter((r) => r.data.status === 'active').sort(byActivity)
+		case 'closed':
+			return rows.filter(isClosed).sort(byCreated)
+		default: {
+			// すべて：返答待ち・要対応 → 進行中 → 終了 の順（同じ状態の中では、最近動きがあった順）
+			const rank = (r: Row) => (r.data.status === 'requested' ? 0 : r.data.status === 'active' ? 1 : 2)
+			return [...rows].sort((a, b) => rank(a) - rank(b) || byActivity(a, b))
+		}
+	}
+}
+
+function SessionRow({ row }: { row: Row }) {
 	const { userId } = useAuth()
 	const navigate = useNavigate()
 	const { data } = row
@@ -26,6 +64,7 @@ function SessionRow({ row, showResume }: { row: Row; showResume?: boolean }) {
 		data.lastMessageBy !== userId &&
 		!!data.lastMessageAt &&
 		(!myRead || data.lastMessageAt.toMillis() > myRead.toMillis())
+	const thumb = data.source.imageUrls[0]
 
 	const resume = async (e: React.MouseEvent) => {
 		e.stopPropagation()
@@ -40,81 +79,83 @@ function SessionRow({ row, showResume }: { row: Row; showResume?: boolean }) {
 	}
 
 	return (
-		<div className="user-row clickable" onClick={() => navigate(`/s/${row.id}`)}>
-			{partner?.imageUrl ? <img className="avatar" src={partner.imageUrl} alt="" /> : <div className="avatar" />}
-			<div className="user-row-text" style={{ flex: 1 }}>
-				<b>
-					{partner?.name ?? '…'} <span className={`badge ${data.status}`}>{STATUS_LABEL[data.status]}</span>{' '}
-					{unread && <span className="badge new">新着</span>}{' '}
-					<span className="muted">（{roleLabelOf(data, userId)}）</span>
-				</b>
-				<p className="muted clamp">
-					{data.source.text || '（画像のみ）'}
-					{data.source.imageUrls.length > 0 && `　画像${data.source.imageUrls.length}枚`}
+		<div
+			className="req-row"
+			role="link"
+			tabIndex={0}
+			onClick={() => navigate(`/s/${row.id}`)}
+			onKeyDown={(e) => e.key === 'Enter' && navigate(`/s/${row.id}`)}
+		>
+			{thumb ? (
+				<img className="req-thumb" src={thumb} alt="" />
+			) : partner?.imageUrl ? (
+				<img className="req-thumb round" src={partner.imageUrl} alt="" />
+			) : (
+				<div className="req-thumb round" />
+			)}
+			<div className="req-main">
+				<b className="req-title clamp1">{sessionTitle(data)}</b>
+				<p className="muted clamp1">
+					{partner?.name ?? '…'}（{roleLabelOf(data, userId)}）　{data.createdAt.toDate().toLocaleString('ja-JP', { dateStyle: 'short', timeStyle: 'short' })}
 				</p>
-				{data.deleteAt && (
-					<p className="muted">{data.deleteAt.toDate().toLocaleDateString('ja-JP')} に削除されます</p>
+				{data.deleteAt && <p className="muted">{data.deleteAt.toDate().toLocaleDateString('ja-JP')} に削除されます</p>}
+			</div>
+			<div className="req-side">
+				{unread && <span className="badge new">新着</span>}
+				<span className={`badge ${data.status}`}>{statusLabelOf(data, userId)}</span>
+				{data.status === 'ended' && data.approvedAt && (
+					<button className="btn small ghost" onClick={resume} disabled={busy}>
+						再開
+					</button>
 				)}
 			</div>
-			{showResume && data.approvedAt && (
-				<button className="btn small ghost" onClick={resume} disabled={busy}>
-					再開
-				</button>
-			)}
+			<span className="req-chevron">
+				<Icon name="chevron" size={18} />
+			</span>
 		</div>
 	)
 }
 
-function Section({ title, rows, showResume }: { title: ReactNode; rows: Row[]; showResume?: boolean }) {
-	if (rows.length === 0) return null
+/** セッションの行を、カードにまとめて並べる */
+export function SessionRows({ rows, empty }: { rows: Row[]; empty: string }) {
+	if (rows.length === 0)
+		return (
+			<div className="card empty">
+				<p className="muted">{empty}</p>
+			</div>
+		)
 	return (
-		<section className="card">
-			<h2>
-				{title} <span className="muted">{rows.length}</span>
-			</h2>
+		<div className="card list-card">
 			{rows.map((r) => (
-				<SessionRow key={r.id} row={r} showResume={showResume} />
+				<SessionRow key={r.id} row={r} />
 			))}
-		</section>
+		</div>
 	)
 }
 
-// セッションの一覧。状態ごとに、セクションを分ける。リアルタイムに更新される。
-export function SessionList() {
+/** ホームに出す、「いま対応が必要なもの」と「進行中」 */
+export function HomeSessions() {
 	const { userId } = useAuth()
-	const [rows, setRows] = useState<Row[] | null>(null)
-	const [error, setError] = useState(false)
-
-	useEffect(() => {
-		if (!userId) return
-		// ★ ルールの都合で、必ず memberIds の条件を付ける。並べ替えは、画面側で行う（インデックスを増やさないため）
-		return onSnapshot(
-			query(collection(db, 'teach_sessions'), where('memberIds', 'array-contains', userId)),
-			(snap) => setRows(snap.docs.map((d) => ({ id: d.id, data: d.data() as SessionDoc<Timestamp> }))),
-			() => setError(true)
-		)
-	}, [userId])
-
+	const { rows, error } = useSessions()
 	if (error) return <p className="error">セッションを読み込めませんでした。</p>
 	if (rows === null) return <p className="muted">読み込み中…</p>
-	if (rows.length === 0)
-		return (
-			<section className="card">
-				<p className="muted">まだ依頼はありません。「ユーザー」から、依頼を送れます。</p>
-			</section>
-		)
-
-	const needsAction = rows.filter((r) => r.data.status === 'requested' && r.data.tutorId === userId).sort(byCreated)
+	const needs = rows.filter((r) => r.data.status === 'requested' && r.data.tutorId === userId).sort(byCreated)
 	const active = rows.filter((r) => r.data.status === 'active').sort(byActivity)
-	const waiting = rows.filter((r) => r.data.status === 'requested' && r.data.requesterId === userId).sort(byCreated)
-	const closed = rows.filter((r) => r.data.status === 'ended' || r.data.status === 'declined').sort(byCreated)
-
+	if (needs.length + active.length === 0) return null
 	return (
 		<>
-			<Section title="要対応（承認待ち）" rows={needsAction} />
-			<Section title="進行中" rows={active} />
-			<Section title="返答待ち" rows={waiting} />
-			<Section title="終了・拒否" rows={closed} showResume />
+			{needs.length > 0 && (
+				<section className="block">
+					<h2 className="block-title">要対応（承認待ち）</h2>
+					<SessionRows rows={needs} empty="" />
+				</section>
+			)}
+			{active.length > 0 && (
+				<section className="block">
+					<h2 className="block-title">進行中</h2>
+					<SessionRows rows={active} empty="" />
+				</section>
+			)}
 		</>
 	)
 }
